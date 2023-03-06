@@ -39,14 +39,11 @@ DeerClassifier.load_weights('MobileNetV2deerWeights.h5')
 
 
 
-
-
 imageCount = 1
 
 videoName = '20230224_163942'
 
 file_in = "C:\\Users\\User\\Desktop\\OculiScripts\\20230224_163942.mp4"
-
 
 
 def RGB_to_gray_disp(color_image_3d):
@@ -72,10 +69,9 @@ if tracker_type == 'MOSSE':
 bbox_motion                                                                         = None#(170, 200, 180, 140)
 bbox_sumAbsDiff                                                                     = None
 
-
 DVS_TEST                                                                            = False
 MOTION_TEST                                                                         = True
-COLORS_TEST                                                                         = False
+COLORS_TEST                                                                         = True
 MOTION_AND_COLORS_TEST                                                              = False
 MOTION_OR_COLORS_TEST                                                               = False
 BACKGROUND_SUBTRACTION_TEST                                                         = False
@@ -89,7 +85,7 @@ DISPLAY                                                                         
 SAVE                                                                                = False
 SAVE_EVENT_OUTPUT                                                                   = False
 
-FIRST_INDEX                                                                         = 650
+FIRST_INDEX                                                                         = 1000
 LAST_INDEX                                                                          = 1500
 
 
@@ -122,7 +118,7 @@ tests                                                                           
 test_number                                                                         = np.count_nonzero(tests)
 
 cap                                                                                 = cv2.VideoCapture(file_in) #Can change argument from 1,0, or file_in in order to run code with either camera or random video
-#LAST_INDEX                                                                          = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))-1
+LAST_INDEX                                                                          = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))-1
 cols                                                                                = 640 #int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)) #or 127
 rows                                                                                = 360 #int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) #or 127
 
@@ -156,6 +152,12 @@ cv2.putText(motion_and_colors_frame_header, 'Motion and Colors', (5, 60), cv2.FO
 cv2.putText(motion_or_colors_frame_header, 'Motion or Colors', (5, 60), cv2.FONT_HERSHEY_SIMPLEX, fontScale = 2, color = (144, 0, 255), thickness = 5)
 cv2.putText(back_sub_frame_header, 'Background Subtraction', (5, 60), cv2.FONT_HERSHEY_SIMPLEX, fontScale = 2, color = (144, 0, 255), thickness = 5)
 cv2.putText(sum_abs_diff_frame_header, 'Smart Events 2.0', (5, 60), cv2.FONT_HERSHEY_SIMPLEX, fontScale = 2, color = (144, 0, 255), thickness = 5)
+
+
+prev_box = None
+
+
+
 
 if DISPLAY:
     wait                                                                            = 0
@@ -235,28 +237,21 @@ while cap.isOpened():
                 motion_frame_display                                                = np.zeros((rows, cols, 3), dtype = np.uint8)
                 
                 motion_frame_display[~np.isnan(motion_frame)]                       = frame[~np.isnan(motion_frame)]
+
+                if ret:
+                    p1 = (int(bbox_motion[0]), int(bbox_motion[1]))
+                    p2 = (int(bbox_motion[0] + bbox_motion[2]), int(bbox_motion[1] + bbox_motion[3]))
+                    cv2.rectangle(motion_frame_display, p1, p2, (255,0,0), 2, 1)
                 ##################################################################### TRACKER CODE
                 if bbox_motion == None:
                     bbox_motion = cv2.selectROI(motion_frame_display,False)
+                    prev_box = bbox_motion
                 ret = tracker.init(motion_frame_display, bbox_motion)
                 ret, bbox_motion = tracker.update(motion_frame_display)
-                if ret:                        
-                        p1 = (int(bbox_motion[0]), int(bbox_motion[1]))
-                        p2 = (int(bbox_motion[0] + bbox_motion[2]), int(bbox_motion[1] + bbox_motion[3]))
-                        cv2.rectangle(motion_frame_display, p1, p2, (255,0,0), 2, 1)
-                        
-                else:                
-                        cv2.putText(motion_frame_display, "Tracking failure detected", (20,20),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.75,(0,0,255),2)   
-                        #cv2.putText(frame, tracker_type + " Tracker", (100,20), 
-                        #cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50,170,50),2)
-                        #cv2.putText(frame, "FPS : " + str(int(fps)), (100,50), 
-                        #cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50,170,50),2)
-                        #cv2.imshow("Tracking", frame)
-                ################################################################################# END OF TRACKER CODE
+                
 
+                    
 
- 
 
 
                 
@@ -309,7 +304,7 @@ while cap.isOpened():
                         
                 '''                 
 
-
+                #if ret:
                 frames_to_display.append(np.vstack((motion_frame_header, motion_bandwidth_header, motion_frame_display)))
 
 
@@ -320,47 +315,55 @@ while cap.isOpened():
 
         if COLORS_TEST or COLORS_TRIG:
             colors_frame, colors_npix                                               = autoscan.intensity(frame_gray, COLORS_TLO, COLORS_THI)
-            
 
-            # add color intensity frame to frames_to_display
-            frames_to_display.append(np.vstack((colors_frame_header, colors_bandwidth_header, colors_frame_display)))
             if COLORS_TEST:
                 if not bandwidth_counter:
                     colors_bandwidth                                                = 100 * (colors_npix / (np.shape(colors_frame)[0] * np.shape(colors_frame)[1]))
                 colors_frame_display                                                = np.zeros((rows, cols, 3), dtype = np.uint8)
                 colors_frame_display[~np.isnan(colors_frame)]                       = frame[~np.isnan(colors_frame)]
+                mixed_frame                                                         = np.zeros((rows, cols, 3), dtype = np.uint8)
+
+                if ret:
+                        p1 = (int(bbox_motion[0]), int(bbox_motion[1]))
+                        p2 = (int(bbox_motion[0] + bbox_motion[2]), int(bbox_motion[1] + bbox_motion[3]))
+                        cv2.rectangle(motion_frame_display, p1, p2, (255,0,0), 2, 1)
+                        prev_box = bbox_motion
+                else:
+                        cv2.putText(motion_frame_display, "Tracking failure detected", (20,20), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.75,(0,0,255),2)
+                        #Coordinates of bbox_motion
+                        bbox_x, bbox_y, bbox_w, bbox_h = [int(v) for v in prev_box]
+                        #Cropped color frame
+                        cropped_frame = colors_frame_display[bbox_y:bbox_y+bbox_h, bbox_x:bbox_x+bbox_w]
+                        #Motion Cropped Frame
+                        mixed_frame = motion_frame_display 
+                        mixed_frame[bbox_y:bbox_y+bbox_h, bbox_x:bbox_x+bbox_w] = cropped_frame
+                        #frames_to_display.append(np.vstack((motion_frame_header, motion_bandwidth_header, mixed_frame)))
+
+
 
                 ##################################################################### TRACKER CODE
-                if bbox_motion == None:
-                    bbox_motion = cv2.selectROI(colors_frame_display,False)
-                ret = tracker.init(colors_frame_display, bbox_motion)
-                ret, bbox_motion = tracker.update(colors_frame_display)
-                if ret:
-                    p1 = (int(bbox_motion[0]), int(bbox_motion[1]))
-                    p2 = (int(bbox_motion[0] + bbox_motion[2]), int(bbox_motion[1] + bbox_motion[3]))
-                    cv2.rectangle(colors_frame_display, p1, p2, (255,0,0), 2, 1)
-
-                else:
-                    cv2.putText(colors_frame_display, "Tracking failure detected", (20,20), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.75,(0,0,255),2)
-
-                      #cv2.putText(frame, tracker_type + " Tracker", (100,20), 
-                      #cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50,170,50),2)
-                      #cv2.putText(frame, "FPS : " + str(int(fps)), (100,50), 
-                      #cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50,170,50),2)
-                      #cv2.imshow("Tracking", frame)
+                # if bbox_motion == None:
+                #     bbox_motion = cv2.selectROI(colors_frame_display,False)
+                # ret = tracker.init(colors_frame_display, bbox_motion)
+                # ret, bbox_motion = tracker.update(colors_frame_display)
+                # if ret:
+                #         p1 = (int(bbox_motion[0]), int(bbox_motion[1]))
+                #         p2 = (int(bbox_motion[0] + bbox_motion[2]), int(bbox_motion[1] + bbox_motion[3]))
+                #         cv2.rectangle(colors_frame_display, p1, p2, (255,0,0), 2, 1)
+                # else:
+                #         cv2.putText(colors_frame_display, "Tracking failure detected", (20,20), 
+                #         cv2.FONT_HERSHEY_SIMPLEX, 0.75,(0,0,255),2)
+                #         #cv2.putText(frame, tracker_type + " Tracker", (100,20), 
+                #         #cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50,170,50),2)
+                #         #cv2.putText(frame, "FPS : " + str(int(fps)), (100,50), 
+                #         #cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50,170,50),2)
+                #         #cv2.imshow("Tracking", frame)
                 ################################################################################# END OF TRACKER CODE
                 
-                #last_bbox = bbox_motion[-1]
-                #display last_bbox using motion output
-                #TopX, TopY, Width, Height = last_bbox
-                #print(TopX)
-
-
-
                 colors_bandwidth_header                                             = np.zeros((100, cols, 3), dtype = np.uint8)
-                #cv2.putText(colors_bandwidth_header, '{0:.2f}%'.format(colors_bandwidth), (5, 60), cv2.FONT_HERSHEY_SIMPLEX, fontScale = 2, color = (144, 0, 255), thickness = 5)
-                frames_to_display.append(np.vstack((colors_frame_header, colors_bandwidth_header, colors_frame_display)))
+                cv2.putText(colors_bandwidth_header, '{0:.2f}%'.format(colors_bandwidth), (5, 60), cv2.FONT_HERSHEY_SIMPLEX, fontScale = 2, color = (144, 0, 255), thickness = 5)
+                frames_to_display.append(np.vstack((colors_frame_header, colors_bandwidth_header, mixed_frame)))
 
         if MOTION_AND_COLORS_TEST:
             motion_and_colors_frame                                                 = np.zeros((rows, cols, 3), dtype = np.float32)
